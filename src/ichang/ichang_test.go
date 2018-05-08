@@ -126,7 +126,7 @@ func TestBelows(t *testing.T) {
 
 func TestGetYueGuaShen(t *testing.T) {
 	bg := XunWeiFeng
-	bgplus := bg.BuildGua64Plus()
+	bgplus := bg.BuildGua64Plus(nil)
 	if bgplus.yueguashen != 5 {
 		t.Errorf("%v setYueGuaShen() got %v; want %v", bg, bgplus.yueguashen, 5)
 	}
@@ -134,7 +134,7 @@ func TestGetYueGuaShen(t *testing.T) {
 
 func TestGetShiShen(t *testing.T) {
 	bg := HuoDiJin
-	bgplus := bg.BuildGua64Plus()
+	bgplus := bg.BuildGua64Plus(nil)
 	if bgplus.shishen != 4 {
 		t.Errorf("%v GetShiShen() got %v; want %v", bg, bgplus.shishen, 4)
 	}

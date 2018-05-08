@@ -16,12 +16,13 @@ type GuaXiang struct {
 	ZongGua Gua64
 	CuoGua  Gua64
 	HuGua   Gua64
-	by      []int
+	by      map[int]bool
 }
 
 // BuGua 卜卦
 func BuGua() GuaXiang {
 	var gx GuaXiang
+	gx.by = make(map[int]bool)
 	bianyao := uint8(0)
 	for i := 0; i < 6; i++ {
 		fmt.Printf("模拟占卜第%d爻中...\n", i+1)
@@ -29,7 +30,7 @@ func BuGua() GuaXiang {
 		switch sum {
 		case 0: // 三个0，太阴，变爻
 			bianyao |= 1 << uint(i)
-			gx.by = append(gx.by, i+1)
+			gx.by[i+1] = true
 		case 1: // 一个1，少阳
 			gx.BenGua |= 1 << uint(i)
 		case 2: // 两个1，少阴
@@ -37,7 +38,7 @@ func BuGua() GuaXiang {
 		case 3: // 三个1，太阳，变爻
 			gx.BenGua |= 1 << uint(i)
 			bianyao |= 1 << uint(i)
-			gx.by = append(gx.by, i+1)
+			gx.by[i+1] = true
 		}
 		// time.Sleep(5 * time.Second)
 	}

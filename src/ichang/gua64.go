@@ -1,6 +1,7 @@
 package ichang
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -135,7 +136,7 @@ func (g Gua64) IsPrimary() bool {
 // Gua64Plus 详细信息
 type Gua64Plus struct {
 	bg                  [2]Gua64
-	by                  []int
+	by                  map[int]bool
 	name                [2]string
 	gong                Gong8
 	upGua8              [2]Gua8
@@ -150,15 +151,15 @@ type Gua64Plus struct {
 }
 
 // BuildGua64Plus 卦详细信息
-func (g Gua64) BuildGua64Plus(by []int) *Gua64Plus {
+func (g Gua64) BuildGua64Plus(by map[int]bool) *Gua64Plus {
 	// fmt.Println("building ", g)
 	gp := new(Gua64Plus)
 	gp.bg[0] = g
 	gp.name[0] = strings.Fields(gua64fullstr)[g]
 	if by != nil {
 		gp.bg[1] = g
-		for i := 0; i < len(by); i++ {
-			gp.bg[1] ^= 1 << uint(by[i]-1)
+		for k := range by {
+			gp.bg[1] ^= 1 << uint(k-1)
 		}
 		gp.name[1] = strings.Fields(gua64fullstr)[gp.bg[1]]
 	}
@@ -183,7 +184,7 @@ func (gp *Gua64Plus) setUpDown() {
 		gs := gp.bg[i].splitToGua8()
 		gp.downGua8[i] = gs[0]
 		gp.upGua8[i] = gs[1]
-		if gp.by == nil {
+		if len(gp.by) == 0 {
 			break
 		}
 	}
@@ -195,7 +196,7 @@ func (gp *Gua64Plus) setYao() {
 		for j := 0; j < 6; j++ {
 			gp.yaos[i][j] = yaos[j]
 		}
-		if gp.by == nil {
+		if len(gp.by) == 0 {
 			break
 		}
 	}
@@ -210,7 +211,7 @@ func (gp *Gua64Plus) setTiangan() {
 		gp.tgs[i][3] = gp.upGua8[i].tiangan(true)
 		gp.tgs[i][4] = gp.tgs[i][3]
 		gp.tgs[i][5] = gp.tgs[i][3]
-		if gp.by == nil {
+		if len(gp.by) == 0 {
 			break
 		}
 	}
@@ -221,7 +222,7 @@ func (gp *Gua64Plus) setDizhi() {
 	for i := 0; i < 2; i++ {
 		copy(gp.dzs[i][:3], gp.downGua8[i].dizhi(false))
 		copy(gp.dzs[i][3:], gp.upGua8[i].dizhi(true))
-		if gp.by == nil {
+		if len(gp.by) == 0 {
 			break
 		}
 	}
@@ -229,21 +230,26 @@ func (gp *Gua64Plus) setDizhi() {
 
 // setWuxing 纳五行
 func (gp *Gua64Plus) setWuxing() {
-	for i, dz := range gp.dzs {
-		gp.wxs[i] = dz.ToWuxing()
+	for i := 0; i < 2; i++ {
+		for j, dz := range gp.dzs[i] {
+			gp.wxs[i][j] = dz.ToWuxing()
+		}
+		if len(gp.by) == 0 {
+			break
+		}
 	}
 }
 
 // setShiYing 装世应
 // 八卦之首世六当，以下初爻轮上扬； 游魂八卦四爻上，归魂八卦三爻详。
 func (gp *Gua64Plus) setShiYing() {
-	if gp.upGua8 == gp.downGua8 {
+	if gp.upGua8[0] == gp.downGua8[0] {
 		gp.shi, gp.ying = 6, 3
 		return
 	}
 	for i := 0; i < 8; i++ {
 		for j := 0; j < 8; j++ {
-			if gua64s[i][j] == gp.bg {
+			if gua64s[i][j] == gp.bg[0] {
 				switch j {
 				case 0:
 					gp.shi, gp.ying = 6, 3
@@ -275,81 +281,86 @@ func (gp *Gua64Plus) setShiYing() {
 // 离宫火兄水为鬼, 土子木父金财助。（离宫属火)
 // 震巽木兄水父母，金鬼火子财是土。（震巽两宫，八卦俱属木）
 func (gp *Gua64Plus) setLiuqin() {
-	switch gp.gong {
-	case QianGong, DuiGong:
-		for i, wx := range gp.wxs {
-			switch wx {
-			case WxJin:
-				gp.lqs[i] = XiongDi
-			case WxTu:
-				gp.lqs[i] = FuMu
-			case WxMu:
-				gp.lqs[i] = QiCai
-			case WxHuo:
-				gp.lqs[i] = GuanGui
-			case WxShui:
-				gp.lqs[i] = ZiSun
+	for j := 0; j < 2; j++ {
+		switch gp.gong {
+		case QianGong, DuiGong:
+			for i, wx := range gp.wxs[j] {
+				switch wx {
+				case WxJin:
+					gp.lqs[j][i] = XiongDi
+				case WxTu:
+					gp.lqs[j][i] = FuMu
+				case WxMu:
+					gp.lqs[j][i] = QiCai
+				case WxHuo:
+					gp.lqs[j][i] = GuanGui
+				case WxShui:
+					gp.lqs[j][i] = ZiSun
+				}
+			}
+		case KanGong:
+			for i, wx := range gp.wxs[j] {
+				switch wx {
+				case WxShui:
+					gp.lqs[j][i] = XiongDi
+				case WxHuo:
+					gp.lqs[j][i] = QiCai
+				case WxTu:
+					gp.lqs[j][i] = GuanGui
+				case WxJin:
+					gp.lqs[j][i] = FuMu
+				case WxMu:
+					gp.lqs[j][i] = ZiSun
+				}
+			}
+		case KunGong, GenGong:
+			for i, wx := range gp.wxs[j] {
+				switch wx {
+				case WxTu:
+					gp.lqs[j][i] = XiongDi
+				case WxShui:
+					gp.lqs[j][i] = QiCai
+				case WxMu:
+					gp.lqs[j][i] = GuanGui
+				case WxHuo:
+					gp.lqs[j][i] = FuMu
+				case WxJin:
+					gp.lqs[j][i] = ZiSun
+				}
+			}
+		case LiGong:
+			for i, wx := range gp.wxs[j] {
+				switch wx {
+				case WxHuo:
+					gp.lqs[j][i] = XiongDi
+				case WxJin:
+					gp.lqs[j][i] = QiCai
+				case WxShui:
+					gp.lqs[j][i] = GuanGui
+				case WxMu:
+					gp.lqs[j][i] = FuMu
+				case WxTu:
+					gp.lqs[j][i] = ZiSun
+				}
+			}
+		case ZhenGong, XunGong:
+			for i, wx := range gp.wxs[j] {
+				switch wx {
+				case WxMu:
+					gp.lqs[j][i] = XiongDi
+				case WxTu:
+					gp.lqs[j][i] = QiCai
+				case WxJin:
+					gp.lqs[j][i] = GuanGui
+				case WxShui:
+					gp.lqs[j][i] = FuMu
+				case WxHuo:
+					gp.lqs[j][i] = ZiSun
+				}
 			}
 		}
-	case KanGong:
-		for i, wx := range gp.wxs {
-			switch wx {
-			case WxShui:
-				gp.lqs[i] = XiongDi
-			case WxHuo:
-				gp.lqs[i] = QiCai
-			case WxTu:
-				gp.lqs[i] = GuanGui
-			case WxJin:
-				gp.lqs[i] = FuMu
-			case WxMu:
-				gp.lqs[i] = ZiSun
-			}
-		}
-	case KunGong, GenGong:
-		for i, wx := range gp.wxs {
-			switch wx {
-			case WxTu:
-				gp.lqs[i] = XiongDi
-			case WxShui:
-				gp.lqs[i] = QiCai
-			case WxMu:
-				gp.lqs[i] = GuanGui
-			case WxHuo:
-				gp.lqs[i] = FuMu
-			case WxJin:
-				gp.lqs[i] = ZiSun
-			}
-		}
-	case LiGong:
-		for i, wx := range gp.wxs {
-			switch wx {
-			case WxHuo:
-				gp.lqs[i] = XiongDi
-			case WxJin:
-				gp.lqs[i] = QiCai
-			case WxShui:
-				gp.lqs[i] = GuanGui
-			case WxMu:
-				gp.lqs[i] = FuMu
-			case WxTu:
-				gp.lqs[i] = ZiSun
-			}
-		}
-	case ZhenGong, XunGong:
-		for i, wx := range gp.wxs {
-			switch wx {
-			case WxMu:
-				gp.lqs[i] = XiongDi
-			case WxTu:
-				gp.lqs[i] = QiCai
-			case WxJin:
-				gp.lqs[i] = GuanGui
-			case WxShui:
-				gp.lqs[i] = FuMu
-			case WxHuo:
-				gp.lqs[i] = ZiSun
-			}
+		if len(gp.by) == 0 {
+			break
 		}
 	}
 }
@@ -359,19 +370,19 @@ func (gp *Gua64Plus) setLiuqin() {
 // 寅申持世身居三，卯酉持世身居四。
 // 辰戌持世身居五，巳亥持世身居六
 func (gp *Gua64Plus) setShiShen() {
-	gp.shishen = int((gp.dzs[gp.shi-1]+2)%6) + 1
+	gp.shishen = int((gp.dzs[0][gp.shi-1]+2)%6) + 1
 }
 
 // setYueGuaShen 安月卦身（不一定有）
 // 阴世则从午月起，阳世还从子月生；欲得识其卦中意，从初数至世方真。
 func (gp *Gua64Plus) setYueGuaShen() {
 	var target Dizhi
-	if gp.yaos[gp.shi-1] == YinYao {
+	if gp.yaos[0][gp.shi-1] == YinYao {
 		target = (DzWu + Dizhi(gp.shi-1)) % 12
 	} else {
 		target = (DzZi + Dizhi(gp.shi-1)) % 12
 	}
-	for i, dz := range gp.dzs {
+	for i, dz := range gp.dzs[0] {
 		if dz == target {
 			gp.yueguashen = i + 1
 			return
@@ -467,25 +478,46 @@ func (g Gua64) String() string {
 
 func (gp Gua64Plus) String() string {
 	var b strings.Builder
-	gp.ng.BuildGua64Plus()
-	b.WriteString("======" + gp.gong.String() + ":" + gp.name + "======" + "\n")
+	b.WriteString("====" + gp.gong.String() + ":" + gp.name[0])
+	if len(gp.by) > 0 {
+		b.WriteString(">>>>>>>>> " + gp.name[1])
+	}
+	b.WriteString("====\n")
+	// ll := b.Len()
 	for i := 5; i >= 0; i-- {
-		b.WriteString(gp.lqs[i].String())
+		b.WriteString(gp.lqs[0][i].String())
 		b.WriteString(" ")
-		b.WriteString(gp.tgs[i].String())
-		b.WriteString(gp.dzs[i].String())
+		b.WriteString(gp.tgs[0][i].String())
+		b.WriteString(gp.dzs[0][i].String())
 		b.WriteString(" ")
-		b.WriteString(gp.wxs[i].String())
+		b.WriteString(gp.wxs[0][i].String())
 		b.WriteString(" ")
-		b.WriteString(gp.yaos[i].String())
+		b.WriteString(gp.yaos[0][i].String())
 		b.WriteString(" ")
 		if i == gp.shi-1 {
 			b.WriteString("世")
-		}
-		if i == gp.ying-1 {
+		} else if i == gp.ying-1 {
 			b.WriteString("应")
+		} else {
+			b.WriteString("  ")
+		}
+		l := b.Len()
+		fmt.Println(l)
+		// b.WriteString(strings.Repeat(" ", b.Len()-ll))
+		if len(gp.by) > 0 && gp.by[i+1] == true {
+			b.WriteString("     * ")
+			b.WriteString(gp.lqs[1][i].String())
+			b.WriteString(" ")
+			b.WriteString(gp.tgs[1][i].String())
+			b.WriteString(gp.dzs[1][i].String())
+			b.WriteString(" ")
+			b.WriteString(gp.wxs[1][i].String())
+			b.WriteString(" ")
+			b.WriteString(gp.yaos[1][i].String())
+			b.WriteString(" ")
 		}
 		b.WriteString("\n")
+		// ll = b.Len()
 	}
 	b.WriteString("世身：" + strconv.Itoa(gp.shishen))
 	b.WriteString("\n")
