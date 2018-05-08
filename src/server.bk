@@ -1,0 +1,86 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"time"
+	"unicode/utf8"
+)
+
+type Font struct {
+	Glyphs map[string]Glyph `json:"glyphs"`
+	Statics
+}
+type Glyph struct {
+	AdvanceWidth int    `json:"ha"`
+	Xmin         int    `json:"x_min"`
+	Xmax         int    `json:"x_max"`
+	Path         string `json:"o"`
+}
+type Statics struct {
+	FamilyName         string         `json:"familyName"`
+	Ascender           int            `json:"ascender"`
+	Descender          int            `json:"descender"`
+	UnderlinePosition  int            `json:"underlinePosition"`
+	UnderlineThickness int            `json:"underlineThickness"`
+	BoundingBox        map[string]int `json:"boundingBox"`
+	Resolution         int            `json:"resolution"`
+	//origininfo         map[string]string `json:"ha"`
+	//cssfontweight      string            `json:"cssfontweight"`
+	//cssfontstyle       string            `json:"cssfontstyle"`
+}
+
+var font Font
+
+func init() {
+	start := time.Now()
+	file, err := os.Open("../resource/font.json")
+	if err != nil {
+		log.Fatal("open failed")
+	}
+	defer file.Close()
+
+	err = json.NewDecoder(file).Decode(&font)
+	if err != nil {
+		log.Fatal("json decode error")
+	}
+	fmt.Println(time.Since(start))
+	// fmt.Println(font.FamilyName, font.Ascender, font.Descender, font.UnderlinePosition, font.UnderlineThickness)
+	// fmt.Println(font.BoundingBox)
+	// for key, value := range font.Glyphs {
+	// 	fmt.Println(key, ":", value)
+	// }
+}
+
+func main() {
+	http.HandleFunc("/getpath", getpath)
+	http.ListenAndServe("localhost:8000", nil)
+}
+
+func getpath(w http.ResponseWriter, req *http.Request) {
+	str := req.URL.Query().Get("str")
+	if str == "" {
+		fmt.Fprintln(w, "no input string, pls input something!\n")
+		return
+	}
+	n := utf8.RuneCount([]byte(str))
+	charsmap := make(map[string]Glyph, n)
+
+	for _, char := range str {
+		if glyph, ok := font.Glyphs[string(char)]; ok {
+			//fmt.Fprintf(w, "%#v\n", glyph)
+			charsmap[string(char)] = glyph
+		} else {
+			fmt.Fprintf(w, "sorry, not found for: ", char)
+		}
+	}
+	newfont := Font{charsmap, font.Statics}
+	//log.Println(newfont)
+	//data, _ := json.MarshalIndent(newfont, "", "	")
+	data, _ := json.Marshal(newfont)
+	fmt.Fprintf(w, "%s\n", data)
+	return
+}
